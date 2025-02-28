@@ -1,12 +1,12 @@
-﻿using Domain.Interfaces.Events;
+﻿using Domain.Interfaces.Broker;
 using EventStore.Client;
 using Microsoft.Extensions.Configuration;
 using System.Text;
 using System.Text.Json;
 
-namespace Infrastructure.Broker
+namespace Application.Broker
 {
-    public class EventStoreService(IConfiguration configuration) : IEventStore
+    public class EventStore(IConfiguration configuration) : IEventStore
     {
         private readonly EventStoreClient _client
             = new EventStoreClient(EventStoreClientSettings.Create(configuration.GetConnectionString("EventStore")));
@@ -14,7 +14,7 @@ namespace Infrastructure.Broker
         public async Task AppendEventAsync(string streamName, object @event)
         {
             var eventData = new EventData(
-                EventStore.Client.Uuid.NewUuid(),
+                Uuid.NewUuid(),
                 @event.GetType().Name,
                 Encoding.UTF8.GetBytes(JsonSerializer.Serialize(@event))
             );

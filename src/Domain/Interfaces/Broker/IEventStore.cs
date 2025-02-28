@@ -1,4 +1,4 @@
-﻿namespace Domain.Interfaces.Events
+﻿namespace Domain.Interfaces.Broker
 {
     public interface IEventStore
     {

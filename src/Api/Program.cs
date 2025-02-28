@@ -21,10 +21,6 @@ namespace Api
                 app.UseSwaggerUI();
             }
 
-            //var orderEventHandler = app.Services.GetRequiredService<OrderEventHandler>();
-            //var cts = new CancellationTokenSource();
-            //orderEventHandler.StartListening(cts.Token);
-
             app.UseHttpsRedirection();
             app.UseAuthorization();
             app.MapControllers();

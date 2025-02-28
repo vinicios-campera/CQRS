@@ -1,17 +1,21 @@
 ﻿using Confluent.Kafka;
 using Domain.Events;
-using Domain.Interfaces.Events;
+using Domain.Interfaces.Broker;
 using Domain.Interfaces.Repositories;
 using MediatR;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 
 namespace Application.Commands.Order
 {
     public record CreateOrderCommand(string CustomerName, decimal TotalAmount) : IRequest<Guid>;
 
-    public class CreateOrderCommandHandler(IOrderWriteRepository repository, 
-        IProducer<string, string> kafkaProducer, 
-        IEventStore eventStore) : IRequestHandler<CreateOrderCommand, Guid>
+    public class CreateOrderCommandHandler(IOrderWriteRepository repository,
+        IProducer<string, string> kafkaProducer,
+        IEventStore eventStore,
+        IConfiguration configuration,
+        ILogger<CreateOrderCommandHandler> logger) : IRequestHandler<CreateOrderCommand, Guid>
     {
         public async Task<Guid> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
         {
@@ -34,17 +38,32 @@ namespace Application.Commands.Order
 
             var eventMessage = JsonConvert.SerializeObject(orderEvent);
 
-            //Eventual
-            await kafkaProducer.ProduceAsync("orders-topic", new Message<string, string>
-            {
-                Key = order.Id.ToString(),
-                Value = eventMessage
-            });
-
-            //Event Sourcing
-            //await eventStore.AppendEventAsync($"order-{order.Id}", eventMessage);
-
+            await PublishMessageAsync(order.Id.ToString(), eventMessage);
             return order.Id;
+        }
+
+        private async Task PublishMessageAsync(string key, string eventMessage)
+        {
+            var syncType = configuration.GetValue<string>("SyncType");
+
+            switch (syncType)
+            {
+                case "kafka":
+                    await kafkaProducer.ProduceAsync("orders", new Message<string, string>
+                    {
+                        Key = key,
+                        Value = eventMessage
+                    });
+                    break;
+
+                case "eventstore":
+                    await eventStore.AppendEventAsync($"orders", eventMessage);
+                    break;
+
+                default:
+                    logger.LogInformation("Sincronizador não configurado");
+                    break;
+            }
         }
     }
 }
