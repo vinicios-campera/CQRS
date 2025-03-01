@@ -3,6 +3,7 @@ using Domain.Events;
 using EventStore.Client;
 using MongoDB.Driver;
 using Newtonsoft.Json;
+using System.IO;
 using System.Text;
 
 namespace EventStoreConsumer
@@ -19,7 +20,7 @@ namespace EventStoreConsumer
             = new(EventStoreClientSettings.Create(configuration.GetConnectionString("EventStore")!));
 
         private readonly IEnumerable<string> _streams
-            = configuration.GetSection("EventStore:Streams").Get<List<string>>()!;
+            = configuration.GetSection("Streams").Get<List<string>>()!;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -35,13 +36,14 @@ namespace EventStoreConsumer
         {
             logger.LogInformation("Iniciando consumo para o stream: {StreamName}", streamName);
 
-            var persistent = configuration.GetValue<bool>("EventStore:Persistent");
+            var persistent = configuration.GetValue<bool>("Persistent");
 
             if (persistent) //Só vai obter os eventos não reconhecidos
             {
+                var groupName = $"{streamName}-group";
                 await _clientPersistentSub.SubscribeToStreamAsync(
                 streamName,
-                "orders-group",
+                groupName,
                 async (subscription, resolvedEvent, retryCount, cancellationToken) =>
                 {
                     try

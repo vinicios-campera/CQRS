@@ -9,7 +9,7 @@ namespace Application.Broker
     public class EventStore(IConfiguration configuration) : IEventStore
     {
         private readonly EventStoreClient _client
-            = new EventStoreClient(EventStoreClientSettings.Create(configuration.GetConnectionString("EventStore")));
+            = new(EventStoreClientSettings.Create(configuration.GetConnectionString("EventStore")!));
 
         public async Task AppendEventAsync(string streamName, object @event)
         {
@@ -30,7 +30,7 @@ namespace Application.Broker
             await foreach (var resolvedEvent in result)
             {
                 var json = Encoding.UTF8.GetString(resolvedEvent.Event.Data.ToArray());
-                events.Add(JsonSerializer.Deserialize<object>(json));
+                events.Add(JsonSerializer.Deserialize<object>(json)!);
             }
 
             return events;

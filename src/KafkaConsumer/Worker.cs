@@ -12,7 +12,7 @@ namespace KafkaConsumer
            = mongoClient.GetDatabase("OrdersDb").GetCollection<OrderDto>("Orders");
 
         private readonly IEnumerable<string> _topics
-            = configuration.GetSection("Kafka:Topics").Get<List<string>>()!;
+            = configuration.GetSection("Topics").Get<List<string>>()!;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -28,7 +28,7 @@ namespace KafkaConsumer
         {
             var config = new ConsumerConfig
             {
-                BootstrapServers = configuration.GetValue<string>("Kafka:Server"),
+                BootstrapServers = configuration.GetConnectionString("Kafka"),
                 GroupId = $"group_{topic}",
                 AutoOffsetReset = AutoOffsetReset.Earliest,
                 EnableAutoCommit = false

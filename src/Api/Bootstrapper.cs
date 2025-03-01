@@ -1,7 +1,9 @@
 ﻿using Application.Commands.Order;
 using Confluent.Kafka;
+using Confluent.Kafka.Admin;
 using Domain.Interfaces.Broker;
 using Domain.Interfaces.Repositories;
+using EventStore.Client;
 using Infrastructure.Data;
 using Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -33,11 +35,33 @@ namespace Api
 
         public static void ConfigureKafka(this WebApplicationBuilder builder)
         {
+            var topics = builder.Configuration.GetSection("Topics").Get<List<string>>()!.ToArray();
+            using var adminClient = new AdminClientBuilder(new AdminClientConfig
+            {
+                BootstrapServers = builder.Configuration.GetConnectionString("Kafka")
+            }).Build();
+
+            var metadata = adminClient.GetMetadata(TimeSpan.FromSeconds(5));
+            foreach (var topicName in topics)
+            {
+                if (!metadata.Topics.Any(t => t.Topic == topicName))
+                {
+                    var topicSpec = new TopicSpecification
+                    {
+                        Name = topicName,
+                        NumPartitions = 3,
+                        ReplicationFactor = (short)1
+                    };
+
+                    adminClient.CreateTopicsAsync([topicSpec]).GetAwaiter().GetResult();
+                }
+            }
+
             builder.Services.AddSingleton<IProducer<string, string>>(sp =>
             {
                 var config = new ProducerConfig
                 {
-                    BootstrapServers = builder.Configuration.GetValue<string>("Kafka:Server")
+                    BootstrapServers = builder.Configuration.GetConnectionString("Kafka")
                 };
                 return new ProducerBuilder<string, string>(config).Build();
             });
@@ -58,6 +82,34 @@ namespace Api
 
         public static void ConfigureEventStore(this WebApplicationBuilder builder)
         {
+            var streams = builder.Configuration.GetSection("Streams").Get<List<string>>()!.ToArray();
+
+            var settings = EventStoreClientSettings.Create(builder.Configuration.GetConnectionString("EventStore")!);
+            var client = new EventStorePersistentSubscriptionsClient(settings);
+            foreach (var stream in streams)
+            {
+                var groupName = $"{stream}-group";
+                try
+                {
+                    client.GetInfoToStreamAsync(stream, groupName).GetAwaiter().GetResult();
+                }
+                catch (PersistentSubscriptionNotFoundException)
+                {
+                    var settingsSubscription = new PersistentSubscriptionSettings(
+                        startFrom: StreamPosition.End,
+                        resolveLinkTos: true,
+                        extraStatistics: false,
+                        messageTimeout: TimeSpan.FromSeconds(30),
+                        maxRetryCount: 10,
+                        liveBufferSize: 500,
+                        readBatchSize: 20,
+                        historyBufferSize: 500
+                    );
+
+                    client.CreateToStreamAsync(stream, groupName, settingsSubscription).GetAwaiter().GetResult();
+                }
+            }
+
             builder.Services.AddSingleton<IEventStore, Application.Broker.EventStore>();
         }
 

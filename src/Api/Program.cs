@@ -1,3 +1,6 @@
+using Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
+
 namespace Api
 {
     public static class Program
@@ -14,6 +17,8 @@ namespace Api
 
             var app = builder.Build();
 
+            app.ApplyMigrationSqlServer();
+
             if (app.Environment.IsDevelopment())
             {
                 app.MapOpenApi();
@@ -25,6 +30,13 @@ namespace Api
             app.UseAuthorization();
             app.MapControllers();
             app.Run();
+        }
+
+        public static void ApplyMigrationSqlServer(this WebApplication app)
+        {
+            using var scope = app.Services.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+            dbContext.Database.Migrate();
         }
     }
 }
